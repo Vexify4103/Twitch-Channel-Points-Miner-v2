@@ -101,7 +101,7 @@ twitch_miner = TwitchChannelPointsMiner(
         community_goals=False,
         chat=ChatPresence.ONLINE,
         bet=BetSettings(
-            strategy=Strategy.SMART,
+            strategy=Strategy.PERCENTAGE,
             percentage=5,
             percentage_gap=25,
             max_points=50000,
@@ -163,7 +163,7 @@ twitch_miner.mine(
                 watch_streak=True,
                 community_goals=False,
                 bet=BetSettings(
-                    strategy=Strategy.SMART,
+                    strategy=Strategy.PERCENTAGE,
                     percentage=5,
                     stealth_mode=True,
                     percentage_gap=25,
@@ -193,7 +193,7 @@ twitch_miner.mine(
                 watch_streak=True,
                 community_goals=False,
                 bet=BetSettings(
-                    strategy=Strategy.SMART,
+                    strategy=Strategy.PERCENTAGE,
                     percentage=5,
                     stealth_mode=True,
                     percentage_gap=25,
@@ -218,11 +218,25 @@ twitch_miner.mine(
         Streamer(
             "insym",
             settings=StreamerSettings(
-                make_predictions=False,
+                make_predictions=True,
                 follow_raid=True,
                 claim_drops=True,
                 watch_streak=True,
                 community_goals=False,
+                bet=BetSettings(
+                    strategy=Strategy.PERCENTAGE,
+                    percentage=2,
+                    max_points=5000,
+                    minimum_points=30000,
+                    stealth_mode=True,
+                    delay_mode=DelayMode.FROM_END,
+                    delay=6,
+                    filter_condition=FilterCondition(
+                        by=OutcomeKeys.TOTAL_USERS,
+                        where=Condition.GT,
+                        value=30,
+                    ),
+                ),
             ),
         ),
 
