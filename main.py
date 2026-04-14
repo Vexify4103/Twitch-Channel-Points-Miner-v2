@@ -150,6 +150,18 @@ twitch_miner.mine(
             ),
         ),
 
+        Streamer(
+            "flats",
+            settings=StreamerSettings(
+                make_predictions=False,
+                follow_raid=False,
+                claim_drops=True,
+                watch_streak=True,
+                community_goals=False,
+                chat=ChatPresence.ONLINE,
+            ),
+        ),
+
         # ── boxyfresh ────────────────────────────────────────────────────────────
         # Favourite streamer, Prime sub here.
         # SoT predictions (steal item / W/L hourglass) are situational — keep
