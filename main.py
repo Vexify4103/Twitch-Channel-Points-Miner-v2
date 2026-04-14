@@ -174,6 +174,7 @@ twitch_miner.mine(
                 claim_drops=True,
                 watch_streak=True,
                 community_goals=False,
+                chat=ChatPresence.ONLINE,
                 bet=BetSettings(
                     strategy=Strategy.PERCENTAGE,
                     percentage=5,
@@ -204,6 +205,7 @@ twitch_miner.mine(
                 claim_drops=True,
                 watch_streak=True,
                 community_goals=False,
+                chat=ChatPresence.ONLINE,
                 bet=BetSettings(
                     strategy=Strategy.PERCENTAGE,
                     percentage=5,
@@ -235,6 +237,7 @@ twitch_miner.mine(
                 claim_drops=True,
                 watch_streak=True,
                 community_goals=False,
+                chat=ChatPresence.ONLINE,
                 bet=BetSettings(
                     strategy=Strategy.PERCENTAGE,
                     percentage=2,
@@ -264,6 +267,19 @@ twitch_miner.mine(
                 claim_drops=True,
                 watch_streak=True,
                 community_goals=False,
+                chat=ChatPresence.ONLINE,
+            ),
+        ),
+
+        Streamer(
+            "mcdev_tv",
+            settings=StreamerSettings(
+                make_predictions=False,
+                follow_raid=True,
+                claim_drops=True,
+                watch_streak=True,
+                community_goals=False,
+                chat=ChatPresence.ONLINE,
             ),
         ),
     ],
