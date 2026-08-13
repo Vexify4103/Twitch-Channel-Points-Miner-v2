@@ -51,9 +51,9 @@ twitch_miner = TwitchChannelPointsMiner(
     password=TWITCH_PASSWORD,
     claim_drops_startup=True,       # Claim any pending drops on startup
     priority=[
-        Priority.STREAK,            # 1. Watch streaks are time-sensitive, catch first
-        Priority.SUBSCRIBED,        # 2. Gifted/Prime subs count — get the points multiplier
-        Priority.DROPS,             # 3. Drops campaigns (august, rainbow6)
+        Priority.DROPS,             # 1. Never let subscriber priority displace active drops
+        Priority.STREAK,            # 2. Catch time-sensitive watch streaks next
+        Priority.SUBSCRIBED,        # 3. Gifted/Prime subs count toward the points multiplier
         Priority.ORDER,             # 4. Fall back to array order below
     ],
     enable_analytics=False,
@@ -162,6 +162,18 @@ twitch_miner.mine(
             ),
         ),
 
+        Streamer(
+            "warn",
+            settings=StreamerSettings(
+                make_predictions=False,
+                follow_raid=False,
+                claim_drops=True,
+                watch_streak=True,
+                community_goals=False,
+                chat=ChatPresence.ONLINE,
+            ),
+        ),
+
         # ── boxyfresh ────────────────────────────────────────────────────────────
         # Favourite streamer, Prime sub here.
         # SoT predictions (steal item / W/L hourglass) are situational — keep
@@ -194,9 +206,8 @@ twitch_miner.mine(
         ),
 
         # ── caedrel ──────────────────────────────────────────────────────────────
-        # LEC/LCK match predictions have some readability (team form,
-        # standings), so SMART can find genuine edges. percentage_gap=25 skips
-        # near-50/50 matches. minimum_points protects ~half the bank.
+        # Follow the lower-odds favorite in LEC/LCK predictions.
+        # minimum_points protects roughly half the current bank.
         Streamer(
             "caedrel",
             settings=StreamerSettings(
@@ -225,10 +236,8 @@ twitch_miner.mine(
         ),
 
         # ── insym ────────────────────────────────────────────────────────────────
-        # Ghost gambling predictions are pure coin-flips (Will it be
-        # Yuri? Yes/No) with no signal to exploit. Predictions OFF per Codex review —
-        # the bank is too small to absorb variance on random 50/50s.
-        # Re-enable and set minimum_points=8000 once bank exceeds ~30K.
+        # Follow the lower-odds favorite. For rare-ghost questions this normally
+        # selects "No" even when many viewers chase the high-payout "Yes" side.
         Streamer(
             "insym",
             settings=StreamerSettings(
