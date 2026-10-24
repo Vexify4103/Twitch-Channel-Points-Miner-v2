@@ -51,6 +51,11 @@ from TwitchChannelPointsMiner.utils import (
 logger = logging.getLogger(__name__)
 JsonType = Dict[str, Any]
 
+# (connect, read) seconds. Without a timeout a dead socket blocks a thread forever.
+REQUEST_TIMEOUT = (5, 20)
+CLIENT_VERSION_TTL = 3600
+OFFLINE_POLL_INTERVAL = 300
+
 
 class Twitch(object):
     __slots__ = [
@@ -63,7 +68,10 @@ class Twitch(object):
         # "integrity_expire",
         "client_session",
         "client_version",
+        "client_version_checked_at",
         "twilight_build_id_pattern",
+        "last_watch_loop",
+        "last_offline_poll",
     ]
 
     def __init__(self, username, user_agent, password=None):
@@ -82,6 +90,9 @@ class Twitch(object):
         # self.integrity_expire = 0
         self.client_session = token_hex(16)
         self.client_version = CLIENT_VERSION
+        self.client_version_checked_at = 0
+        self.last_watch_loop = time.time()
+        self.last_offline_poll = 0
         self.twilight_build_id_pattern = re.compile(
             r'window\.__twilightBuildID\s*=\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"'
         )
@@ -141,18 +152,19 @@ class Twitch(object):
             headers = {"User-Agent": USER_AGENTS["Linux"]["FIREFOX"]}
 
             main_page_request = requests.get(
-                streamer.streamer_url, headers=headers)
+                streamer.streamer_url, headers=headers, timeout=REQUEST_TIMEOUT)
             response = main_page_request.text
             # logger.info(response)
             regex_settings = "(https://static.twitchcdn.net/config/settings.*?js|https://assets.twitch.tv/config/settings.*?.js)"
             settings_url = re.search(regex_settings, response).group(1)
 
-            settings_request = requests.get(settings_url, headers=headers)
+            settings_request = requests.get(
+                settings_url, headers=headers, timeout=REQUEST_TIMEOUT)
             response = settings_request.text
             regex_spade = '"spade_url":"(.*?)"'
             streamer.stream.spade_url = re.search(
                 regex_spade, response).group(1)
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, AttributeError) as e:
             logger.error(
                 f"Something went wrong during extraction of 'spade_url': {e}")
 
@@ -173,6 +185,8 @@ class Twitch(object):
         json_data["variables"] = {"channel": streamer.username}
         response = self.post_gql_request(json_data)
         if response != {}:
+            if not (response.get("data") or {}).get("user"):
+                return None
             if response["data"]["user"]["stream"] is None:
                 raise StreamerIsOfflineException
             else:
@@ -287,6 +301,7 @@ class Twitch(object):
                     "User-Agent": self.user_agent,
                     "X-Device-Id": self.device_id,
                 },
+                timeout=REQUEST_TIMEOUT,
             )
             logger.debug(
                 f"Data: {json_data}, Status code: {response.status_code}, Content: {response.text}"
@@ -355,8 +370,11 @@ class Twitch(object):
             return False"""
 
     def update_client_version(self):
+        if time.time() - self.client_version_checked_at < CLIENT_VERSION_TTL:
+            return self.client_version
+        self.client_version_checked_at = time.time()
         try:
-            response = requests.get(URL)
+            response = requests.get(URL, timeout=REQUEST_TIMEOUT)
             if response.status_code != 200:
                 logger.debug(
                     f"Error with update_client_version: {response.status_code}"
@@ -373,9 +391,29 @@ class Twitch(object):
             logger.error(f"Error with update_client_version: {e}")
             return self.client_version
 
+    def poll_offline_streamers(self, streamers):
+        # PubSub "stream-up" events can be lost (e.g. after a broken reconnect).
+        # Poll offline streamers with one cheap GQL call so they never get stuck offline.
+        if time.time() - self.last_offline_poll < OFFLINE_POLL_INTERVAL:
+            return
+        self.last_offline_poll = time.time()
+        for streamer in streamers:
+            if streamer.is_online is True or time.time() < streamer.offline_at + 60:
+                continue
+            try:
+                if self.get_stream_info(streamer) is not None:
+                    self.check_streamer_online(streamer)
+            except StreamerIsOfflineException:
+                pass
+            except Exception:
+                logger.debug(f"Offline poll failed for {streamer}", exc_info=True)
+
     def send_minute_watched_events(self, streamers, priority, chunk_size=3):
         while self.running:
+            self.last_watch_loop = time.time()
             try:
+                self.poll_offline_streamers(streamers)
+
                 streamers_index = [
                     i
                     for i in range(0, len(streamers))
@@ -406,7 +444,11 @@ class Twitch(object):
                     if remaining_watch_amount() <= 0:
                         break
 
-                    if prior == Priority.ORDER:
+                    if prior == Priority.FIRST:
+                        if streamers_index:
+                            streamers_watching.add(streamers_index[0])
+
+                    elif prior == Priority.ORDER:
                         # Get the first 2 items, they are already in order
                         streamers_watching.update(streamers_index[:remaining_watch_amount()])
 

@@ -149,10 +149,9 @@ def set_default_settings(settings, defaults):
 
 def internet_connection_available(host="8.8.8.8", port=53, timeout=3):
     try:
-        socket.setdefaulttimeout(timeout)
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
-        return True
-    except socket.error:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
         return False
 
 

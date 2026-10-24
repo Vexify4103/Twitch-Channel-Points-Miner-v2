@@ -88,7 +88,10 @@ class Discord(object):
             return
 
         payload = self._build_payload(message, event)
-        requests.post(url=self.webhook_api, json=payload)
+        try:
+            requests.post(url=self.webhook_api, json=payload, timeout=(5, 10))
+        except requests.exceptions.RequestException:
+            pass  # Discord being unreachable must never block or crash the miner
 
     def _build_payload(self, message: str, event: Events) -> dict:
         event_name = str(event)

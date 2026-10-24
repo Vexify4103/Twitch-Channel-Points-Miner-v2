@@ -391,26 +391,38 @@ class TwitchChannelPointsMiner:
             refresh_context = time.time()
             while self.running:
                 time.sleep(random.uniform(20, 60))
-                # Do an external control for WebSocket. Check if the thread is running
-                # Check if is not None because maybe we have already created a new connection on array+1 and now index is None
-                for index in range(0, len(self.ws_pool.ws)):
-                    if (
-                        self.ws_pool.ws[index].is_reconnecting is False
-                        and self.ws_pool.ws[index].elapsed_last_ping() > 10
-                        and internet_connection_available() is True
-                    ):
-                        logger.info(
-                            f"#{index} - The last PING was sent more than 10 minutes ago. Reconnecting to the WebSocket..."
+                try:
+                    # Watchdog: if the minute watcher has been stuck for 15 minutes,
+                    # exit so the process manager (pm2) restarts a clean miner.
+                    stalled = time.time() - self.twitch.last_watch_loop
+                    if stalled > 15 * 60:
+                        logger.error(
+                            f"Minute watcher stalled for {int(stalled // 60)}m. Exiting so the process manager restarts the miner."
                         )
-                        WebSocketsPool.handle_reconnection(self.ws_pool.ws[index])
+                        os._exit(1)
 
-                if ((time.time() - refresh_context) // 60) >= 30:
-                    refresh_context = time.time()
-                    for index in range(0, len(self.streamers)):
-                        if self.streamers[index].is_online:
-                            self.twitch.load_channel_points_context(
-                                self.streamers[index]
+                    # Do an external control for WebSocket. Check if the thread is running
+                    # Check if is not None because maybe we have already created a new connection on array+1 and now index is None
+                    for index in range(0, len(self.ws_pool.ws)):
+                        if (
+                            self.ws_pool.ws[index].is_reconnecting is False
+                            and self.ws_pool.ws[index].elapsed_last_ping() > 10
+                            and internet_connection_available() is True
+                        ):
+                            logger.info(
+                                f"#{index} - The last PING was sent more than 10 minutes ago. Reconnecting to the WebSocket..."
                             )
+                            WebSocketsPool.handle_reconnection(self.ws_pool.ws[index])
+
+                    if ((time.time() - refresh_context) // 60) >= 30:
+                        refresh_context = time.time()
+                        for index in range(0, len(self.streamers)):
+                            if self.streamers[index].is_online:
+                                self.twitch.load_channel_points_context(
+                                    self.streamers[index]
+                                )
+                except Exception:
+                    logger.error("Exception raised in main loop", exc_info=True)
 
     def end(self, signum, frame):
         if not self.running:

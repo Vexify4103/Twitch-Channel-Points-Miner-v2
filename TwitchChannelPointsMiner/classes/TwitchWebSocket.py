@@ -57,6 +57,11 @@ class TwitchWebSocket(WebSocketApp):
             super().send(request_str)
         except WebSocketConnectionClosedException:
             self.is_closed = True
+        except Exception as e:
+            # SSL/socket errors mid-send used to kill the caller thread and
+            # silently drop the remaining topic subscriptions.
+            logger.warning(f"#{self.index} - Send failed: {e}")
+            self.is_closed = True
 
     def elapsed_last_pong(self):
         return (time.time() - self.last_pong) // 60

@@ -8,6 +8,8 @@ class Priority(Enum):
     SUBSCRIBED = auto()
     POINTS_ASCENDING = auto()
     POINTS_DESCENDING = auto()
+    # Reserve one slot for the first online streamer in list order
+    FIRST = auto()
 
 
 class FollowersOrder(Enum):

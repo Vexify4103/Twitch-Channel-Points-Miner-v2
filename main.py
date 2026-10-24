@@ -51,10 +51,11 @@ twitch_miner = TwitchChannelPointsMiner(
     password=TWITCH_PASSWORD,
     claim_drops_startup=True,       # Claim any pending drops on startup
     priority=[
-        Priority.DROPS,             # 1. Never let subscriber priority displace active drops
-        Priority.STREAK,            # 2. Catch time-sensitive watch streaks next
-        Priority.SUBSCRIBED,        # 3. Gifted/Prime subs count toward the points multiplier
-        Priority.ORDER,             # 4. Fall back to array order below
+        Priority.FIRST,             # 1. Slot 1 always goes to the first online streamer in the list (caedrel)
+        Priority.DROPS,             # 2. Slot 2: active drops campaigns
+        Priority.STREAK,            # 3. Catch time-sensitive watch streaks next
+        Priority.SUBSCRIBED,        # 4. Gifted/Prime subs count toward the points multiplier
+        Priority.ORDER,             # 5. Fall back to array order below
     ],
     enable_analytics=False,
     disable_ssl_cert_verification=False,
@@ -65,7 +66,7 @@ twitch_miner = TwitchChannelPointsMiner(
         console_username=False,
         auto_clear=True,
         time_zone="",
-        file_level=logging.DEBUG,
+        file_level=logging.INFO,    # DEBUG wrote ~3MB/day to the SD card and logged the auth token
         emoji=True,
         less=False,
         colored=True,
@@ -120,6 +121,40 @@ twitch_miner = TwitchChannelPointsMiner(
 
 twitch_miner.mine(
     [
+        # ── caedrel ──────────────────────────────────────────────────────────────
+        # Main points target. Listed FIRST so Priority.FIRST always gives it a
+        # watch slot when live.
+        # Predictions: bet the UNDERDOG (HIGH_ODDS). Backtest of 538 past bets:
+        # following the favourite returned -5.3%, the other side +10.4%.
+        # Small stakes, long-shot filter, and a 15k floor so a bad run cannot wipe the bank.
+        Streamer(
+            "caedrel",
+            settings=StreamerSettings(
+                make_predictions=True,
+                follow_raid=True,
+                claim_drops=True,
+                watch_streak=True,
+                community_goals=False,
+                chat=ChatPresence.ONLINE,
+                bet=BetSettings(
+                    strategy=Strategy.HIGH_ODDS,
+                    percentage=3,               # ~735 per bet at 24.5k
+                    stealth_mode=True,
+                    max_points=5000,
+                    minimum_points=15000,       # stop betting below 15k
+                    # Caedrel locks predictions early; FROM_END missed 40% of bets.
+                    # Payout is fixed at close, so betting early costs nothing.
+                    delay_mode=DelayMode.FROM_START,
+                    delay=90,
+                    filter_condition=FilterCondition(
+                        by=OutcomeKeys.ODDS_PERCENTAGE,
+                        where=Condition.GT,
+                        value=25,               # skip outcomes with odds above 4.0
+                    ),
+                ),
+            ),
+        ),
+
         # ── august ───────────────────────────────────────────────────────────────
         # Main drops-only target (Overwatch).
         # No predictions, no raid-following (leaving a drops stream kills watch time).
@@ -194,36 +229,6 @@ twitch_miner.mine(
                     percentage_gap=25,
                     max_points=50000,
                     minimum_points=100000,
-                    delay_mode=DelayMode.FROM_END,
-                    delay=6,
-                    filter_condition=FilterCondition(
-                        by=OutcomeKeys.TOTAL_USERS,
-                        where=Condition.GT,
-                        value=20,
-                    ),
-                ),
-            ),
-        ),
-
-        # ── caedrel ──────────────────────────────────────────────────────────────
-        # Follow the lower-odds favorite in LEC/LCK predictions.
-        # minimum_points protects roughly half the current bank.
-        Streamer(
-            "caedrel",
-            settings=StreamerSettings(
-                make_predictions=True,
-                follow_raid=True,
-                claim_drops=True,
-                watch_streak=True,
-                community_goals=False,
-                chat=ChatPresence.ONLINE,
-                bet=BetSettings(
-                    strategy=Strategy.PERCENTAGE,
-                    percentage=5,
-                    stealth_mode=True,
-                    percentage_gap=25,
-                    max_points=30000,
-                    minimum_points=20000,
                     delay_mode=DelayMode.FROM_END,
                     delay=6,
                     filter_condition=FilterCondition(

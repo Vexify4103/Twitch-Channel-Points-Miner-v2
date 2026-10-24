@@ -96,8 +96,10 @@ class WebSocketsPool:
             ws.is_opened = True
             ws.ping()
 
-            for topic in ws.pending_topics:
+            for topic in list(ws.pending_topics):
                 ws.listen(topic, ws.twitch.twitch_login.get_auth_token())
+            logger.info(f"#{ws.index} - Subscribed to {len(ws.pending_topics)} topics")
+            ws.pending_topics = []
 
             while ws.is_closed is False:
                 # Else: the ws is currently in reconnecting phase, you can't do ping or other operation.
@@ -156,14 +158,15 @@ class WebSocketsPool:
 
                 # Why not create a new ws on the same array index? Let's try.
                 self = ws.parent_pool
-                # Create a new connection.
-                self.ws[ws.index] = self.__new(ws.index)
+                # Create a new connection and hand it the FULL topic list up front.
+                # on_open subscribes everything in pending_topics, so a send error
+                # can no longer leave the new socket with only part of the topics.
+                new_ws = self.__new(ws.index)
+                new_ws.topics = list(ws.topics)
+                new_ws.pending_topics = list(ws.topics)
+                self.ws[ws.index] = new_ws
 
                 self.__start(ws.index)  # Start a new thread.
-                time.sleep(30)
-
-                for topic in ws.topics:
-                    self.__submit(ws.index, topic)
 
     @staticmethod
     def on_message(ws, message):
